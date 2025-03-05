@@ -1,23 +1,32 @@
 use std::{
-    fs,
+    env, fs,
     process::Command,
     thread,
     time::{Duration, SystemTime},
 };
 
+fn get_file_age(file: &String) -> Result<(), Box<dyn std::error::Error>> {
+    let meta = fs::metadata(file)?;
+    let changed = meta.modified()?;
+    let sys_time = SystemTime::now().duration_since(changed)?;
+
+    println!("{:?}", sys_time);
+
+    Ok(())
+}
+
 fn main() {
-    let file = "/Github/heyo/notes/todo.md";
+    let home = env::var("HOME").expect("Coulld not get home directory");
+    let file_path = format!("{home}/Github/nasdvoya/tmux-reminder/flake.nix");
 
-    let metadata = fs::metadata(&file).expect("Failed to get metadata");
-    let changed = metadata.modified().expect("when i hit the music");
-    std::time::Duration::from_secs(1);
+    get_file_age(&file_path);
 
-    let sys_time = SystemTime::now().duration_since(changed);
-    println!("Squabble up {:?}", sys_time);
-    // println!("{:?}", file_type);
-    // Ok(Metadata { file_type: FileType { is_file: true, is_dir: false, is_symlink: false, .. }, permissions: Permissions(FilePermissions { mode: 0o100664 (-rw-rw-r--) }), len: 629, modified: SystemTime { tv_sec: 1741108391, tv_nsec: 570236412 }, accessed: SystemTime { tv_sec: 1741108391, tv_nsec: 570236412 }, created: SystemTime { tv_sec: 1741108391, tv_nsec: 570236412 }, .. })
+    let content = fs::read_to_string(&file_path).unwrap_or_else(|e| {
+        eprintln!("Failed to read file: {}", e);
+        String::new()
+    });
 
-    let content = fs::read_to_string(&file).expect("crazy spooky");
+    dbg!(&content);
 
     let line_content: Vec<String> = content
         .lines()
@@ -33,14 +42,14 @@ fn main() {
         .output()
         .expect("Failed to execute tmux");
 
-    let result = String::from_utf8(output.stdout)
+    let _result = String::from_utf8(output.stdout)
         .expect("Failed to parse output")
         .trim()
         .to_string();
 
     thread::spawn(move || {
         loop {
-            fs::metadata(&file);
+            fs::metadata(&file_path);
             for reminder in &line_content {
                 _ = Command::new("tmux")
                     .arg("set")
