@@ -2,6 +2,7 @@ use std::{
     env::{self, args},
     fs,
     process::Command,
+    str::FromStr,
     thread,
     time::{Duration, SystemTime},
 };
@@ -11,6 +12,40 @@ fn get_file_age(file: &String) -> Result<(), Box<dyn std::error::Error>> {
     let changed = meta.modified()?;
     let sys_time = SystemTime::now().duration_since(changed)?;
     Ok(())
+}
+
+struct Configuration {
+    file_path: String,
+    update_interval: u16,
+}
+
+fn setup() -> Result<Configuration, String> {
+    let interval = Command::new("tmux")
+        .arg("show-option")
+        .arg("-gv")
+        .arg("@tmux_reminder_interval")
+        .output()
+        .expect("Failed to get tmux option");
+
+    let file_path = Command::new("tmux")
+        .arg("show-option")
+        .arg("-gv")
+        .arg("@tmux_reminder_file")
+        .output()
+        .expect("Failepub d to get tmux option");
+
+    let setup_interval = String::from_utf8(interval.stdout)
+        .expect("")
+        .trim()
+        .parse::<u16>()
+        .expect("Failed to parse interval");
+
+    let setup_path = String::from_utf8(file_path.stdout).expect("s");
+
+    Ok(Configuration {
+        file_path: setup_path,
+        update_interval: setup_interval,
+    })
 }
 
 fn main() {
@@ -52,6 +87,11 @@ fn main() {
         }
     });
 }
+
+// How Your Rust Code Should Handle These Options
+//
+// Your Rust program should retrieve these values using:
+//
 
 // Center
 // set -g status-right "#[align=absolute-centre] Hello, world! #[align=right]"
