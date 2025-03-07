@@ -1,17 +1,15 @@
 use std::{
-    env::{self, args},
+    env::{self},
     fs,
     process::Command,
-    str::FromStr,
     thread,
-    time::{Duration, SystemTime},
+    time::{self, Duration, SystemTime},
 };
 
-fn get_file_age(file: &String) -> Result<(), Box<dyn std::error::Error>> {
-    let meta = fs::metadata(file)?;
-    let changed = meta.modified()?;
-    let sys_time = SystemTime::now().duration_since(changed)?;
-    Ok(())
+fn get_file_age(file: &String) -> Result<Duration, Box<dyn std::error::Error>> {
+    let meta = fs::metadata(file)?.modified()?;
+    let time = SystemTime::now().duration_since(meta)?;
+    Ok(time)
 }
 
 struct Configuration {
@@ -39,7 +37,6 @@ fn setup() -> Result<Configuration, String> {
         .trim()
         .parse::<u16>()
         .expect("Failed to parse interval");
-
     let setup_path = String::from_utf8(file_path.stdout).expect("s");
 
     Ok(Configuration {
@@ -52,8 +49,6 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     let home = env::var("HOME").expect("Coulld not get home directory");
     let file_path = format!("{home}/Github/nasdvoya/tmux-reminder/flake.nix");
-
-    // get_file_age(&file_path);
 
     let content = fs::read_to_string(&file_path).unwrap_or_else(|e| {
         eprintln!("Failed to read file: {}", e);
@@ -71,6 +66,17 @@ fn main() {
 
     thread::spawn(move || {
         loop {
+            // get_file_age(&file_path);
+            // if get_file_age(&file_path) >= Time {
+            //
+            // }
+            if let Ok(age) = get_file_age(&file_path) {
+                if age >= SystemTime::now().duration_since()   {
+                    todo!();
+                }
+            } else {
+            }
+
             for reminder in &line_content {
                 println!("{}", reminder);
                 _ = Command::new("tmux")
