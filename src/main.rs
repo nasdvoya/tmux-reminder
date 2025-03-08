@@ -1,15 +1,14 @@
 use std::{
     env::{self},
-    fmt::format,
     fs,
     process::Command,
     thread,
-    time::{self, Duration, SystemTime},
+    time::{Duration, SystemTime},
 };
 
 struct Configuration {
     file_path: String,
-    update_interval: u16,
+    update_interval: u64,
 }
 
 fn setup() -> Result<Configuration, String> {
@@ -25,12 +24,12 @@ fn setup() -> Result<Configuration, String> {
         .arg("-gv")
         .arg("@tmux_reminder_file")
         .output()
-        .expect("Failepub d to get tmux option");
+        .expect("Failed to get tmux option");
 
     let setup_interval = String::from_utf8(interval.stdout)
         .expect("")
         .trim()
-        .parse::<u16>()
+        .parse::<u64>()
         .expect("Failed to parse interval");
     let setup_path = String::from_utf8(file_path.stdout).expect("s");
 
@@ -73,32 +72,45 @@ fn main() {
         }
     };
 
-    if let Ok(notes_content) = get_file_content(&plugin_configuration.file_path) {
-        thread::spawn(move || {
-            loop {
-                if let Ok(file_age) = get_file_age(&plugin_configuration.file_path) {
-                    if file_age >= Duration::from_secs(5) {
-                        let notes_content = get_file_content(&plugin_configuration.file_path);
+    let handle = thread::spawn(move || {
+        loop {
+            let notes_content = match get_file_age(&plugin_configuration.file_path) {
+                Ok(file_age)
+                    if file_age >= Duration::from_secs(plugin_configuration.update_interval) =>
+                {
+                    match get_file_content(&plugin_configuration.file_path) {
+                        Ok(content) => content,
+                        Err(e) => {
+                            eprintln!("Error reading file content: {}", e);
+                            vec!["".to_string()]
+                        }
                     }
-                } else {
                 }
+                Ok(_) => {
+                    continue;
+                }
+                Err(e) => {
+                    eprintln!("Error reading file content: {}", e);
+                    vec!["".to_string()]
+                }
+            };
 
-                for reminder in &notes_content {
-                    _ = Command::new("tmux")
-                        .arg("set")
-                        .arg("-g")
-                        .arg("status-right")
-                        .arg(format!(
-                            "#[align=absolute-centre] {} #[align=right]",
-                            reminder
-                        ))
-                        .output();
-                    thread::sleep(Duration::from_secs(2));
-                }
+            for reminder in &notes_content {
+                _ = Command::new("tmux")
+                    .arg("set")
+                    .arg("-g")
+                    .arg("status-right")
+                    .arg(format!(
+                        "#[align=absolute-centre] {} #[align=right]",
+                        reminder
+                    ))
+                    .output();
+                thread::sleep(Duration::from_secs(2));
             }
-        });
-    } else {
-    }
+        }
+    });
+
+    handle.join().expect("Thread panicked");
 }
 
 // Center
