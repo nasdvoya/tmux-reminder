@@ -6,6 +6,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
+#[derive(Debug)]
 struct Configuration {
     file_path: String,
     update_interval: u64,
@@ -31,7 +32,10 @@ fn setup() -> Result<Configuration, String> {
         .trim()
         .parse::<u64>()
         .expect("Failed to parse interval");
-    let setup_path = String::from_utf8(file_path.stdout).expect("s");
+    let setup_path = String::from_utf8(file_path.stdout)
+        .expect("s")
+        .trim()
+        .to_string();
 
     Ok(Configuration {
         file_path: setup_path,
@@ -71,7 +75,6 @@ fn main() {
             }
         }
     };
-
     let handle = thread::spawn(move || {
         loop {
             let notes_content = match get_file_age(&plugin_configuration.file_path) {
@@ -90,7 +93,8 @@ fn main() {
                     continue;
                 }
                 Err(e) => {
-                    eprintln!("Error reading file content: {}", e);
+                    dbg!(&plugin_configuration);
+                    eprintln!("General error reading file content: {}", e);
                     vec!["".to_string()]
                 }
             };
@@ -110,7 +114,7 @@ fn main() {
         }
     });
 
-    handle.join().expect("Thread panicked");
+    handle.join().unwrap();
 }
 
 // Center
