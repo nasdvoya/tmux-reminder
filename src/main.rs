@@ -75,46 +75,29 @@ fn main() {
             }
         }
     };
-    let handle = thread::spawn(move || {
-        loop {
-            let notes_content = match get_file_age(&plugin_configuration.file_path) {
-                Ok(file_age)
-                    if file_age >= Duration::from_secs(plugin_configuration.update_interval) =>
-                {
-                    match get_file_content(&plugin_configuration.file_path) {
-                        Ok(content) => content,
-                        Err(e) => {
-                            eprintln!("Error reading file content: {}", e);
-                            vec!["".to_string()]
-                        }
-                    }
-                }
-                Ok(_) => {
-                    continue;
-                }
+    let notes_content = match get_file_age(&plugin_configuration.file_path) {
+        Ok(file_age) if file_age >= Duration::from_secs(plugin_configuration.update_interval) => {
+            match get_file_content(&plugin_configuration.file_path) {
+                Ok(content) => content,
                 Err(e) => {
-                    dbg!(&plugin_configuration);
-                    eprintln!("General error reading file content: {}", e);
+                    eprintln!("Error reading file content: {}", e);
                     vec!["".to_string()]
                 }
-            };
-
-            for reminder in &notes_content {
-                _ = Command::new("tmux")
-                    .arg("set")
-                    .arg("-g")
-                    .arg("status-right")
-                    .arg(format!(
-                        "#[align=absolute-centre] {} #[align=right]",
-                        reminder
-                    ))
-                    .output();
-                thread::sleep(Duration::from_secs(2));
             }
         }
-    });
+        Ok(_) => {
+            vec!["".to_string()]
+        }
+        Err(e) => {
+            dbg!(&plugin_configuration);
+            eprintln!("General error reading file content: {}", e);
+            vec!["".to_string()]
+        }
+    };
 
-    handle.join().unwrap();
+    for reminder in &notes_content {
+        println!("#[align=absolute-centre] {} #[align=right]", reminder);
+    }
 }
 
 // Center
