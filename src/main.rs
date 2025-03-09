@@ -78,7 +78,6 @@ impl Configuration {
             Err(e) => {
                 let content =
                     fs::read_to_string(&self.state_path).expect("Failed to read state file");
-                eprintln!("Failed getting index: {}", e);
 
                 content
                     .lines()
@@ -110,8 +109,7 @@ fn main() {
     let all_reminders = match plugin_configuration.get_file_content() {
         Ok(content) => content,
         Err(e) => {
-            eprintln!("Error reading file content: {}", e);
-            vec!["".to_string()]
+            vec!["No reminders found.".to_string()]
         }
     };
 
@@ -123,8 +121,9 @@ fn main() {
         &all_reminders[0]
     };
 
-    reminder_index = (reminder_index + 1) % all_reminders.len();
-    fs::write("state.txt", reminder_index.to_string()).expect("Failed to reset state file");
-
     println!("#[align=absolute-centre] {} #[align=right]", reminder);
+
+    reminder_index = (reminder_index + 1) % all_reminders.len();
+    fs::write(&plugin_configuration.state_path, reminder_index.to_string())
+        .expect("Failed to reset state file");
 }
