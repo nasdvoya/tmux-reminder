@@ -1,106 +1,132 @@
 use std::{
     env::{self},
-    fs,
+    fs::{self, File},
+    path::PathBuf,
     process::Command,
-    thread,
-    time::{Duration, SystemTime},
 };
 
 #[derive(Debug)]
 struct Configuration {
-    file_path: String,
-    update_interval: u64,
+    reminder_file: String,
+    state_path: PathBuf,
+    update_interval: usize,
 }
 
-fn setup() -> Result<Configuration, String> {
-    let interval = Command::new("tmux")
-        .arg("show-option")
-        .arg("-gv")
-        .arg("@tmux_reminder_interval")
-        .output()
-        .expect("Failed to get tmux option");
+impl Configuration {
+    fn new() -> Self {
+        Self {
+            reminder_file: Self::get_reminder_file(),
+            update_interval: Self::get_reminder_interval(),
+            state_path: Self::get_state_path(),
+        }
+    }
+    fn get_state_path() -> PathBuf {
+        let home = env::var("HOME").expect("Could not get home directory");
+        let config_dir = PathBuf::from(home).join("Github").join("tmux-reminder");
 
-    let file_path = Command::new("tmux")
-        .arg("show-option")
-        .arg("-gv")
-        .arg("@tmux_reminder_file")
-        .output()
-        .expect("Failed to get tmux option");
+        let _ = fs::create_dir(&config_dir);
+        config_dir.join("state.txt")
+    }
 
-    let setup_interval = String::from_utf8(interval.stdout)
-        .expect("")
-        .trim()
-        .parse::<u64>()
-        .expect("Failed to parse interval");
-    let setup_path = String::from_utf8(file_path.stdout)
-        .expect("s")
-        .trim()
-        .to_string();
+    fn get_reminder_interval() -> usize {
+        let default_interval = "5".to_string();
+        let interval = Command::new("tmux")
+            .arg("show-option")
+            .arg("-gv")
+            .arg("@tmux_reminder_interval")
+            .output()
+            .map_err(|e| format!("Failed to execute tmux command for interval update: {}", e))
+            .ok();
 
-    Ok(Configuration {
-        file_path: setup_path,
-        update_interval: setup_interval,
-    })
-}
+        let setup_interval = interval
+            .and_then(|out| String::from_utf8(out.stdout).ok())
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .unwrap_or(default_interval)
+            .parse::<usize>()
+            .unwrap_or(5);
 
-fn get_file_age(file: &String) -> Result<Duration, Box<dyn std::error::Error>> {
-    let meta = fs::metadata(file)?.modified()?;
-    let time = SystemTime::now().duration_since(meta)?;
-    Ok(time)
-}
+        setup_interval
+    }
 
-fn get_file_content(file_path: &String) -> Result<Vec<String>, Box<dyn std::error::Error>> {
-    let content = fs::read_to_string(&file_path)?;
-    dbg!(&content);
+    fn get_reminder_file() -> String {
+        let default_path = format!(
+            "{}/Github/nasdvoya/tmux-reminder/flake.nix",
+            env::var("HOME").unwrap_or_else(|_| "/tmp".to_string())
+        );
 
-    let line_content: Vec<String> = content
-        .lines()
-        .skip(2)
-        .filter(|line| !line.trim().is_empty())
-        .map(String::from)
-        .collect();
+        let output = Command::new("tmux")
+            .arg("show-option")
+            .arg("-gv")
+            .arg("@tmux_reminder_file")
+            .output()
+            .map_err(|e| eprintln!("Failed to execute tmux command for interval update: {}", e))
+            .ok();
 
-    return Ok(line_content);
-}
+        let path = output
+            .and_then(|out| String::from_utf8(out.stdout).ok())
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .unwrap_or(default_path);
 
-fn main() {
-    let plugin_configuration = match setup() {
-        Ok(config) => config,
-        Err(e) => {
-            eprintln!("Error during plugin setup, will use defaults, error: {}", e);
-            let home = env::var("HOME").expect("Coulld not get home directory");
-            Configuration {
-                file_path: format!("{home}/Github/nasdvoya/tmux-reminder/flake.nix"),
-                update_interval: 5,
+        path
+    }
+
+    fn get_reminder_index(&self) -> usize {
+        let note_index = match File::create_new(&self.state_path) {
+            Ok(_) => {
+                println!("New state created.");
+                0
             }
-        }
-    };
-    let notes_content = match get_file_age(&plugin_configuration.file_path) {
-        Ok(file_age) if file_age >= Duration::from_secs(plugin_configuration.update_interval) => {
-            match get_file_content(&plugin_configuration.file_path) {
-                Ok(content) => content,
-                Err(e) => {
-                    eprintln!("Error reading file content: {}", e);
-                    vec!["".to_string()]
-                }
-            }
-        }
-        Ok(_) => {
-            vec!["".to_string()]
-        }
-        Err(e) => {
-            dbg!(&plugin_configuration);
-            eprintln!("General error reading file content: {}", e);
-            vec!["".to_string()]
-        }
-    };
+            Err(_) => {
+                println!("State file already exists. Geting state...");
+                let content = fs::read_to_string("state.txt").expect("");
 
-    for reminder in &notes_content {
-        println!("#[align=absolute-centre] {} #[align=right]", reminder);
+                content
+                    .lines()
+                    .next()
+                    .and_then(|s| s.trim().parse::<usize>().ok())
+                    .unwrap_or(0)
+            }
+        };
+        note_index
+    }
+
+    fn get_file_content(&self) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+        let content = fs::read_to_string(&self.reminder_file)?;
+
+        let line_content: Vec<String> = content
+            .lines()
+            .skip(2)
+            .filter(|line| !line.trim().is_empty())
+            .map(String::from)
+            .collect();
+
+        return Ok(line_content);
     }
 }
 
-// Center
-// set -g status-right "#[align=absolute-centre] Hello, world! #[align=right]"
-// set -ga status-right "#{?window_bigger,[#{window_offset_x}#,#{window_offset_y}] ,}\ 📅 %d.%m.%y 🕰  %H:%M 💻 #{client_user}@#H "
-// set -g status-right-length 65
+fn main() {
+    let plugin_configuration = Configuration::new();
+    let mut reminder_index = plugin_configuration.get_reminder_index();
+    let all_reminders = match plugin_configuration.get_file_content() {
+        Ok(content) => content,
+        Err(e) => {
+            eprintln!("Error reading file content: {}", e);
+            vec!["".to_string()]
+        }
+    };
+
+    let reminder = if reminder_index < all_reminders.len() {
+        &all_reminders[reminder_index]
+    } else {
+        fs::write("state.txt", "0").expect("Failed to reset state file");
+        reminder_index = 0;
+        &all_reminders[0]
+    };
+
+    reminder_index = (reminder_index + 1) % all_reminders.len();
+    fs::write("state.txt", reminder_index.to_string()).expect("Failed to reset state file");
+
+    println!("#[align=absolute-centre] {} #[align=right]", reminder);
+}
