@@ -74,13 +74,11 @@ impl Configuration {
 
     fn get_reminder_index(&self) -> usize {
         let note_index = match File::create_new(&self.state_path) {
-            Ok(_) => {
-                println!("New state created.");
-                0
-            }
-            Err(_) => {
-                println!("State file already exists. Geting state...");
-                let content = fs::read_to_string("state.txt").expect("");
+            Ok(_) => 0,
+            Err(e) => {
+                let content =
+                    fs::read_to_string(&self.state_path).expect("Failed to read state file");
+                eprintln!("Failed getting index: {}", e);
 
                 content
                     .lines()
