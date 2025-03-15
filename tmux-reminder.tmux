@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
 
+CURRENT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
 if [ ! -f "$CURRENT_DIR/target/release/tmux_reminder" ]; then
     (cd "$CURRENT_DIR" && cargo build --release)
 fi
-
-
-CURRENT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 # PLugin options
 tmux set-option -gq @tmux_reminder_interval "5"
