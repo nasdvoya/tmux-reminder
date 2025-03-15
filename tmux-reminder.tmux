@@ -4,6 +4,7 @@ if [ ! -f "$CURRENT_DIR/target/release/tmux_reminder" ]; then
     (cd "$CURRENT_DIR" && cargo build --release)
 fi
 
+
 CURRENT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 # PLugin options
