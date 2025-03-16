@@ -7,7 +7,6 @@ if [ ! -f "$CURRENT_DIR/target/release/tmux_reminder" ]; then
 fi
 
 # PLugin options
-tmux set-option -gq @tmux_reminder_interval "5"
 tmux set-option -gq @tmux_reminder_file "$CURRENT_DIR/Cargo.toml"
 
 # Run the Rust program periodically to update the status
